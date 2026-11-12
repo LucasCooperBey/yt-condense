@@ -1,15 +1,18 @@
 """Offline tests for yt_condense.py.
 
-yt-dlp, faster-whisper, and HTTP are replaced with fakes. Nothing here talks
-to YouTube, Anthropic, Ollama, or a clipboard.
+yt-dlp, faster-whisper, claude, and HTTP are replaced with fakes. Nothing here
+talks to YouTube, Anthropic, Ollama, or a clipboard.
 """
 
 from __future__ import annotations
 
 import atexit
+import builtins
 import io
 import json
+import os
 import shutil
+import subprocess
 import sys
 import types
 import urllib.error
@@ -536,3 +539,244 @@ def test_copy_sends_the_paste_text_to_the_first_clipboard_tool(monkeypatch, tmp_
     assert code == 0
     assert copied["command"] == ["pbcopy"]
     assert copied["input"] == (out / "paste-into-chat.txt").read_bytes()
+
+
+def test_auto_picks_claude_even_when_an_anthropic_key_is_set(monkeypatch, tmp_path, capsys):
+    # source: Door 26, 11-12: a Claude plan user should not need an API key
+    install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    which_calls: list[str] = []
+    runs: list[dict] = []
+
+    def which(name, *args, **kwargs):
+        which_calls.append(name)
+        if name == "claude":
+            return "claude"
+        return None
+
+    def run(command, input=None, capture_output=False, text=False, timeout=None):
+        runs.append(
+            {
+                "command": command,
+                "input": input,
+                "capture_output": capture_output,
+                "text": text,
+                "timeout": timeout,
+            }
+        )
+        return types.SimpleNamespace(returncode=0, stdout="From the Claude plan.\n", stderr="")
+
+    def fake_urlopen(request, timeout=None):
+        raise AssertionError(request.full_url)
+
+    monkeypatch.setattr(yt_condense.shutil, "which", which)
+    monkeypatch.setattr(yt_condense.subprocess, "run", run)
+    monkeypatch.setattr(yt_condense.urllib.request, "urlopen", fake_urlopen)
+    out = tmp_path / "claude-auto"
+    code = yt_condense.main([VIDEO_URL, "--provider", "auto", "--out", str(out)])
+    assert code == 0
+    assert which_calls == ["claude"]
+    assert len(runs) == 1
+    expected = yt_condense.fill_prompt(
+        "Fixture Title",
+        VIDEO_URL,
+        0,
+        20,
+        "[00:00] hello from the captions\n",
+    )
+    assert "hello from the captions" in expected
+    assert runs[0]["command"] == ["claude", "-p", "--output-format", "text"]
+    assert runs[0]["input"] == expected
+    assert runs[0]["capture_output"] is True
+    assert runs[0]["text"] is True
+    assert runs[0]["timeout"] == 900
+    assert (out / "condensed.txt").read_text(encoding="utf-8") == "From the Claude plan.\n"
+    assert "Using claude" in capsys.readouterr().out
+
+
+def test_auto_falls_through_to_anthropic_when_claude_is_absent(monkeypatch, tmp_path, capsys):
+    # source: Door 26, 11-12: auto falls through to Anthropic when claude is not on PATH
+    install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    which_calls: list[str] = []
+
+    def which(name, *args, **kwargs):
+        which_calls.append(name)
+        return None
+
+    def run(command, input=None, capture_output=False, text=False, timeout=None):
+        raise AssertionError(command)
+
+    def fake_urlopen(request, timeout=None):
+        sent = json.loads(request.data.decode("utf-8"))
+        assert request.full_url == "https://api.anthropic.com/v1/messages"
+        assert sent["model"] == "claude-sonnet-5-5"
+        return http_response({"content": [{"type": "text", "text": "From Anthropic."}]})
+
+    monkeypatch.setattr(yt_condense.shutil, "which", which)
+    monkeypatch.setattr(yt_condense.subprocess, "run", run)
+    monkeypatch.setattr(yt_condense.urllib.request, "urlopen", fake_urlopen)
+    out = tmp_path / "no-claude"
+    code = yt_condense.main([VIDEO_URL, "--provider", "auto", "--out", str(out)])
+    assert code == 0
+    assert which_calls == ["claude"]
+    assert (out / "condensed.txt").read_text(encoding="utf-8") == "From Anthropic.\n"
+    assert "Using anthropic" in capsys.readouterr().out
+
+
+def test_claude_nonzero_exit_exits_4_and_keeps_transcript(monkeypatch, tmp_path, capsys):
+    # source: Door 26, 11-12: a failing claude command exits 4 and still writes the transcript and paste file
+    install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    kept = "fail-" * 60
+    assert len(kept) == 300
+    stderr_text = kept + "ENDMARKER"
+
+    def which(name, *args, **kwargs):
+        return None
+
+    def run(command, input=None, capture_output=False, text=False, timeout=None):
+        return types.SimpleNamespace(returncode=1, stdout="", stderr=stderr_text)
+
+    def fake_urlopen(request, timeout=None):
+        raise AssertionError(request.full_url)
+
+    monkeypatch.setattr(yt_condense.shutil, "which", which)
+    monkeypatch.setattr(yt_condense.subprocess, "run", run)
+    monkeypatch.setattr(yt_condense.urllib.request, "urlopen", fake_urlopen)
+    out = tmp_path / "claude-fail"
+    code = yt_condense.main([VIDEO_URL, "--provider", "claude", "--out", str(out)])
+    assert code == 4
+    assert (out / "transcript.txt").read_text(encoding="utf-8") == "[00:00] hello from the captions\n"
+    paste = (out / "paste-into-chat.txt").read_text(encoding="utf-8")
+    assert "hello from the captions" in paste
+    assert not (out / "condensed.txt").exists()
+    error = capsys.readouterr().err
+    assert kept in error
+    assert "ENDMARKER" not in error
+    assert "still written" in error
+
+
+def test_claude_timeout_exits_4_and_keeps_transcript(monkeypatch, tmp_path, capsys):
+    # source: Door 26, 11-12: a claude timeout is a provider failure and the transcript is still written
+    install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    kept = "T" * 300
+
+    def which(name, *args, **kwargs):
+        return None
+
+    def run(command, input=None, capture_output=False, text=False, timeout=None):
+        assert timeout == 900
+        raise subprocess.TimeoutExpired(command, timeout, stderr=kept + "TIMEOUTTAIL")
+
+    def fake_urlopen(request, timeout=None):
+        raise AssertionError(request.full_url)
+
+    monkeypatch.setattr(yt_condense.shutil, "which", which)
+    monkeypatch.setattr(yt_condense.subprocess, "run", run)
+    monkeypatch.setattr(yt_condense.urllib.request, "urlopen", fake_urlopen)
+    out = tmp_path / "claude-timeout"
+    code = yt_condense.main([VIDEO_URL, "--provider", "claude", "--out", str(out)])
+    assert code == 4
+    assert (out / "transcript.txt").is_file()
+    assert (out / "paste-into-chat.txt").is_file()
+    assert not (out / "condensed.txt").exists()
+    error = capsys.readouterr().err
+    assert kept in error
+    assert "TIMEOUTTAIL" not in error
+
+
+def test_claude_empty_stdout_exits_4_and_keeps_transcript(monkeypatch, tmp_path, capsys):
+    # source: Door 26, 11-12: claude with empty stdout is a provider failure
+    install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def which(name, *args, **kwargs):
+        return None
+
+    def run(command, input=None, capture_output=False, text=False, timeout=None):
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="no text came back")
+
+    def fake_urlopen(request, timeout=None):
+        raise AssertionError(request.full_url)
+
+    monkeypatch.setattr(yt_condense.shutil, "which", which)
+    monkeypatch.setattr(yt_condense.subprocess, "run", run)
+    monkeypatch.setattr(yt_condense.urllib.request, "urlopen", fake_urlopen)
+    out = tmp_path / "claude-empty"
+    code = yt_condense.main([VIDEO_URL, "--provider", "claude", "--out", str(out)])
+    assert code == 4
+    assert (out / "transcript.txt").is_file()
+    assert (out / "paste-into-chat.txt").is_file()
+    assert not (out / "condensed.txt").exists()
+    assert "no text came back" in capsys.readouterr().err
+
+
+def test_claude_model_flag_is_passed_through(monkeypatch, tmp_path):
+    # source: Door 26, 11-12: --model is passed through to claude
+    install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    runs: list[dict] = []
+
+    def which(name, *args, **kwargs):
+        return None
+
+    def run(command, input=None, capture_output=False, text=False, timeout=None):
+        runs.append({"command": command, "input": input})
+        return types.SimpleNamespace(returncode=0, stdout="Named model summary.\n", stderr="")
+
+    def fake_urlopen(request, timeout=None):
+        raise AssertionError(request.full_url)
+
+    monkeypatch.setattr(yt_condense.shutil, "which", which)
+    monkeypatch.setattr(yt_condense.subprocess, "run", run)
+    monkeypatch.setattr(yt_condense.urllib.request, "urlopen", fake_urlopen)
+    out = tmp_path / "claude-model"
+    code = yt_condense.main(
+        [
+            VIDEO_URL,
+            "--provider",
+            "claude",
+            "--model",
+            "example-model",
+            "--out",
+            str(out),
+        ]
+    )
+    assert code == 0
+    assert runs[0]["command"] == [
+        "claude",
+        "-p",
+        "--output-format",
+        "text",
+        "--model",
+        "example-model",
+    ]
+    assert "hello from the captions" in runs[0]["input"]
+    assert (out / "condensed.txt").read_text(encoding="utf-8") == "Named model summary.\n"
+
+
+def test_public_whisper_models_do_not_send_an_implicit_huggingface_token(monkeypatch):
+    # source: Door 26, 11-12: an expired Hugging Face login must not be sent to a public whisper model
+    install_sources(monkeypatch, caption_vtt=None)
+    monkeypatch.delenv("HF_HUB_DISABLE_IMPLICIT_TOKEN", raising=False)
+    seen: list[str | None] = []
+    real_import = builtins.__import__
+
+    def tracking_import(name, *args, **kwargs):
+        if name == "faster_whisper":
+            seen.append(os.environ.get("HF_HUB_DISABLE_IMPLICIT_TOKEN"))
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", tracking_import)
+    heard = yt_condense.transcribe_audio(Path("clip.m4a"), "tiny", "en")
+    assert heard
+    assert seen == ["1"]
+    assert os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] == "1"
+
+    seen.clear()
+    monkeypatch.setenv("HF_HUB_DISABLE_IMPLICIT_TOKEN", "0")
+    yt_condense.transcribe_audio(Path("clip.m4a"), "tiny", "en")
+    assert seen == ["0"]
+    assert os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] == "0"

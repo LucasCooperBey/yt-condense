@@ -26,13 +26,13 @@ Paste that file into any chat model. The reply is the shorter version. The trans
 
 ## No key
 
-`--provider none` does not call a model and does not need an account. `auto` does the same when `ANTHROPIC_API_KEY` is unset and Ollama is not running on this machine. Add `--copy` to put the paste file on the clipboard with `pbcopy`, `clip`, `wl-copy`, or `xclip`, whichever is installed.
+`--provider claude`. If you use Claude Code, the tool runs `claude -p` on your own plan; no key needed. `--provider none` does not call a model and does not need an account. `auto` uses `claude` when that command is installed, then Anthropic when `ANTHROPIC_API_KEY` is set, then Ollama, then `none`, and it prints the one it picked. Add `--copy` to put the paste file on the clipboard with `pbcopy`, `clip`, `wl-copy`, or `xclip`, whichever is installed.
 
 ## A key or Ollama
 
-Export `ANTHROPIC_API_KEY` and run the same command without `--provider none`. `auto` then calls Anthropic. The default model is `claude-sonnet-5-5`. Override it with `--model`.
+Export `ANTHROPIC_API_KEY` and run the same command without `--provider none`. When the `claude` command is not installed, `auto` calls Anthropic. The default model is `claude-sonnet-5-5`. Override it with `--model`.
 
-Or run [Ollama](https://ollama.com) so `http://localhost:11434/api/tags` answers. With no Anthropic key, `auto` uses the first model Ollama lists and prints that name. `--model` picks a different one.
+Or run [Ollama](https://ollama.com) so `http://localhost:11434/api/tags` answers. When `claude` is not installed and no Anthropic key is set, `auto` uses the first model Ollama lists and prints that name. `--model` picks a different one. With `--provider claude`, `--model NAME` is passed to `claude`. When `--model` is omitted, `claude` is started with no model flag.
 
 Either way the condensed prose is written to `out/VIDEO_ID/condensed.txt`. On a Mac, add `--speak` to also write `out/VIDEO_ID/condensed.m4a` with `say` and `afconvert`. On another system, `--speak` prints that speech output needs macOS and that you can pass `condensed.txt` to your own text to speech tool.
 
@@ -44,7 +44,7 @@ The tool does not require captions. It asks yt-dlp for manual captions in `--lan
 
 ```
 uv run yt_condense.py URL [--from 12:30|750] [--length 20] [--lang en] [--transcribe]
-                          [--whisper-model small] [--provider auto|anthropic|ollama|none]
+                          [--whisper-model small] [--provider auto|claude|anthropic|ollama|none]
                           [--model NAME] [--out DIR] [--speak] [--copy]
 ```
 
@@ -53,6 +53,8 @@ uv run yt_condense.py URL [--from 12:30|750] [--length 20] [--lang en] [--transc
 `--length` is the target size as a percent of the transcript. The default is 20. A transcript over 60,000 characters is split on segment boundaries, each part is condensed, and the parts are joined in order with a blank line.
 
 `--out` sets the output directory. The default is `./out/<video id>/`.
+
+`--provider` accepts `auto`, `claude`, `anthropic`, `ollama`, or `none`. `auto` checks the `claude` command, then `ANTHROPIC_API_KEY`, then Ollama, then `none`, and prints the provider it picked. `--model NAME` is passed to `claude` only when you set it.
 
 Exit codes: `0` success, `2` bad input, `3` the video could not be read (the message names private, removed, region locked, or age gated when yt-dlp reported that), `4` the provider call failed. On `4`, `transcript.txt` and `paste-into-chat.txt` are still written.
 

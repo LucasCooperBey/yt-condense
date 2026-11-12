@@ -191,15 +191,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--provider",
-        choices=("auto", "anthropic", "ollama", "none"),
+        choices=("auto", "claude", "anthropic", "ollama", "none"),
         default="auto",
-        help="auto uses Anthropic when ANTHROPIC_API_KEY is set, otherwise Ollama, otherwise none",
+        help="auto uses claude when the claude command is installed, "
+        "otherwise Anthropic when ANTHROPIC_API_KEY is set, otherwise Ollama, otherwise none",
     )
     parser.add_argument(
         "--model",
         default=None,
         help=f"Model name. Anthropic defaults to {DEFAULT_ANTHROPIC_MODEL}. "
-        "Ollama defaults to the first model listed by the local server",
+        "Ollama defaults to the first model listed by the local server. "
+        "For claude, the name is passed through and omitted when unset",
     )
     parser.add_argument(
         "--out",
@@ -285,6 +287,8 @@ def load_segments(
         audio_path = find_audio(info, directory)
         if audio_path is None:
             raise VideoReadError("yt-dlp did not save an audio file")
+        if not transcribe:
+            print("Downloaded audio because no captions were found.", flush=True)
         segments = transcribe_audio(audio_path, whisper_model, lang)
         return segments, meta_from(info, url)
 
@@ -475,7 +479,10 @@ def transcribe_audio(path: Path, model_name: str, lang: str) -> list[tuple[float
         text = segment.text.strip()
         if text:
             segments.append((float(segment.start), text))
+        # The last segment can end after the reported duration, so the count stops at the total.
         done_minutes = float(segment.end) / 60
+        if total_minutes > 0:
+            done_minutes = min(done_minutes, total_minutes)
         print(f"{done_minutes:.1f} of {total_minutes:.1f} minutes", flush=True)
     return segments
 
@@ -531,6 +538,8 @@ def fill_prompt(title: str, url: str, from_seconds: float, length: int, transcri
 
 
 def resolve_provider(choice: str) -> tuple[str, list[str] | None]:
+    if choice == "claude":
+        return "claude", None
     if choice == "anthropic":
         return "anthropic", None
     if choice == "none":
@@ -540,12 +549,18 @@ def resolve_provider(choice: str) -> tuple[str, list[str] | None]:
         if models is None:
             raise ProviderError("Ollama did not answer at http://localhost:11434/api/tags")
         return "ollama", models
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "anthropic", None
-    models = ollama_tags(2)
-    if models is not None:
-        return "ollama", models
-    return "none", None
+    if shutil.which("claude"):
+        provider, models = "claude", None
+    elif os.environ.get("ANTHROPIC_API_KEY"):
+        provider, models = "anthropic", None
+    else:
+        models = ollama_tags(2)
+        if models is not None:
+            provider = "ollama"
+        else:
+            provider, models = "none", None
+    print(f"Using {provider}")
+    return provider, models
 
 
 def ollama_tags(timeout: float) -> list[str] | None:
@@ -583,6 +598,8 @@ def condense_segments(
     chunks = chunk_segments(segments)
     if provider == "anthropic":
         chosen = model or DEFAULT_ANTHROPIC_MODEL
+    elif provider == "claude":
+        chosen = model
     else:
         chosen = select_ollama_model(model, ollama_models)
     if len(chunks) > 1:
@@ -598,6 +615,8 @@ def condense_segments(
         )
         if provider == "anthropic":
             pieces.append(condense_anthropic(prompt, chosen))
+        elif provider == "claude":
+            pieces.append(condense_claude(prompt, chosen))
         else:
             pieces.append(condense_ollama(prompt, chosen))
     return "\n\n".join(piece.strip() for piece in pieces if piece.strip())
@@ -614,6 +633,34 @@ def select_ollama_model(explicit: str | None, known: list[str] | None) -> str:
         )
     print(f"Using Ollama model {names[0]}")
     return names[0]
+
+
+def condense_claude(prompt: str, model: str | None) -> str:
+    command = ["claude", "-p", "--output-format", "text"]
+    if model:
+        command.extend(["--model", model])
+    try:
+        result = subprocess.run(
+            command,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+    except subprocess.TimeoutExpired as exc:
+        detail = exc.stderr or ""
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        raise ProviderError(str(detail)[:300]) from exc
+    detail = result.stderr or ""
+    if isinstance(detail, bytes):
+        detail = detail.decode("utf-8", errors="replace")
+    text_out = result.stdout or ""
+    if isinstance(text_out, bytes):
+        text_out = text_out.decode("utf-8", errors="replace")
+    if result.returncode != 0 or not str(text_out).strip():
+        raise ProviderError(str(detail)[:300])
+    return str(text_out).strip()
 
 
 def condense_anthropic(prompt: str, model: str) -> str:
