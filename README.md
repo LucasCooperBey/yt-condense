@@ -10,9 +10,11 @@ Install uv with its official installer:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Open a new terminal so `uv` is on your PATH. Clone this repository, change into its folder, and run:
+Open a new terminal so `uv` is on your PATH. Clone this repository, change into its folder, and run it on a video:
 
 ```
+git clone https://github.com/LucasCooperBey/yt-condense.git
+cd yt-condense
 uv run yt_condense.py "https://www.youtube.com/watch?v=VIDEO_ID" --provider none
 ```
 
@@ -23,6 +25,41 @@ out/VIDEO_ID/paste-into-chat.txt
 ```
 
 Paste that file into any chat model. The reply is the shorter version. The transcript with time stamps is in `out/VIDEO_ID/transcript.txt`.
+
+## Example
+
+This is a run from a fresh clone on 2026-11-12 on "Me at the zoo", a 19-second video with captions. With no account, `--provider none` writes the transcript and the paste file:
+
+```
+uv run yt_condense.py "https://www.youtube.com/watch?v=jNQXAC9IVRw" --provider none
+```
+
+```
+Words before: 39
+Words after: no model ran
+out/jNQXAC9IVRw/transcript.txt
+out/jNQXAC9IVRw/paste-into-chat.txt
+No model was called. Paste this file into any chat model: out/jNQXAC9IVRw/paste-into-chat.txt
+```
+
+With Claude Code installed, `--provider claude` condenses it on your own plan. `--length 50` asks for half the length:
+
+```
+uv run yt_condense.py "https://www.youtube.com/watch?v=jNQXAC9IVRw" --provider claude --length 50
+```
+
+```
+Words before: 39
+Words after: 26
+```
+
+`out/jNQXAC9IVRw/condensed.txt` held this. A model words it differently on each run.
+
+```
+Here we are in front of the elephants. The cool thing about them is their really long trunks. That's pretty much all there is to say.
+```
+
+On a video with no captions, the run first prints `Downloaded audio because no captions were found.` and then transcribes the audio on your machine.
 
 ## No key
 
