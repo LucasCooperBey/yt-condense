@@ -1,0 +1,21 @@
+{
+  "name": "yt-condense",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "minify": "bun run scripts/minify.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260109.0",
+    "@types/bun": "latest",
+    "wrangler": "^4.58.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2"
+  }
+}

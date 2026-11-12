@@ -1,0 +1,5 @@
+CLAUDE_API_KEY=
+API_SECRET=
+# Optional. The worker returns text when this is empty.
+ELEVENLABS_API_KEY=
+MODEL=claude-sonnet-5-5

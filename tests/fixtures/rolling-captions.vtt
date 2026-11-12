@@ -1,0 +1,35 @@
+WEBVTT
+Kind: captions
+Language: en
+
+NOTE
+This note is not spoken. It has styling words align:start that must not leak.
+
+1
+00:00:00.000 --> 00:00:02.000 align:start position:0%
+<c.colorE5E5E5>hello</c><00:00:00.400><c> everyone</c><00:00:01.000><c> welcome</c>
+
+00:00:02.000 --> 00:00:04.500 align:start position:0%
+hello everyone welcome
+<c>this</c><00:00:02.400><c> is</c><00:00:02.800><c> the</c><00:00:03.100><c> real</c><00:00:03.600><c> point</c>
+
+00:00:04.500 --> 00:00:06.000 align:start position:0%
+this is the real point
+and here is a fact worth keeping
+
+00:00:06.000 --> 00:00:08.000 align:start position:0%
+and here is a fact worth keeping
+
+00:00:08.000 --> 00:00:10.000 align:start position:19% line:0%
+and here is a fact worth keeping
+the duplicate line should be dropped
+
+00:00:10.000 --> 00:00:12.000 align:start position:0%
+the duplicate line should be dropped and then more words arrive
+
+00:00:10.400 --> 00:00:12.400 align:start position:0%
+the duplicate line should be dropped and then more words arrive in the AT&amp;T window
+
+00:00:12.500 --> 00:00:14.000
+a wrapped line that stays
+together as one sentence

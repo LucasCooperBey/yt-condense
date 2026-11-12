@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Install YT-Condense bookmarklet</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 640px;
+      margin: 48px auto;
+      padding: 0 20px 48px;
+      background: #111;
+      color: #f5f5f5;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      margin: 16px 0;
+    }
+    input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 6px;
+      padding: 10px;
+      border: 1px solid #444;
+      border-radius: 6px;
+      background: #1c1c1c;
+      color: #fff;
+      font: inherit;
+    }
+    a.bookmarklet {
+      display: inline-block;
+      margin: 12px 0;
+      padding: 12px 18px;
+      background: #3f3f46;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 8px;
+    }
+    a.bookmarklet.ready {
+      background: #4338ca;
+      cursor: grab;
+    }
+    .note {
+      color: #bdbdbd;
+    }
+    code {
+      font-family: ui-monospace, monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>YT-Condense bookmarklet</h1>
+  <p>This page builds a bookmark on your computer. It does not send the address or the secret anywhere.</p>
+
+  <label>
+    Worker address
+    <input id="worker" type="url" autocomplete="off" placeholder="https://yt-condense.example.workers.dev" spellcheck="false">
+  </label>
+  <label>
+    Secret
+    <input id="secret" type="password" autocomplete="off" spellcheck="false">
+  </label>
+
+  <p id="status" class="note">Enter the worker address and secret. Then drag the link to the bookmarks bar.</p>
+  <p><a id="bookmarklet" class="bookmarklet" href="#">YT Condense</a></p>
+
+  <h2>Use it</h2>
+  <ol>
+    <li>Drag <strong>YT Condense</strong> to the bookmarks bar after both fields are filled in.</li>
+    <li>Open a YouTube video that shows a transcript panel.</li>
+    <li>Click the bookmark. The condensed text is copied to the clipboard.</li>
+  </ol>
+  <p class="note">The bookmarklet reads the transcript panel on the page. If a video has no transcript panel, it tells you the command to run instead: <code>uv run yt_condense.py "URL"</code>.</p>
+
+  <script src="bookmarklet.js"></script>
+  <script>
+    const workerInput = document.getElementById("worker");
+    const secretInput = document.getElementById("secret");
+    const status = document.getElementById("status");
+    const link = document.getElementById("bookmarklet");
+
+    function compact(source) {
+      return source.replace(/[ \t]*\n[ \t]*/g, " ").trim();
+    }
+
+    function rebuild() {
+      const worker = workerInput.value.trim();
+      const secret = secretInput.value.trim();
+      const template = globalThis.YT_CONDENSE_TEMPLATE;
+      if (!template) {
+        status.textContent = "The bookmarklet source did not load. Open this file next to bookmarklet.js.";
+        link.href = "#";
+        link.classList.remove("ready");
+        return;
+      }
+      if (!worker || !secret) {
+        status.textContent = "Enter the worker address and secret. Then drag the link to the bookmarks bar.";
+        link.href = "#";
+        link.classList.remove("ready");
+        return;
+      }
+      if (!/^https?:\/\//i.test(worker)) {
+        status.textContent = "The worker address needs to start with https:// or http://.";
+        link.href = "#";
+        link.classList.remove("ready");
+        return;
+      }
+      const filled = template
+        .split("__WORKER_URL__").join(JSON.stringify(worker))
+        .split("__API_SECRET__").join(JSON.stringify(secret));
+      link.href = "javascript:" + compact(filled);
+      link.classList.add("ready");
+      status.textContent = "Drag YT Condense to the bookmarks bar. This page keeps the secret in the link only.";
+    }
+
+    workerInput.addEventListener("input", rebuild);
+    secretInput.addEventListener("input", rebuild);
+    rebuild();
+  </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>YT Condense options</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 520px;
+      margin: 32px auto;
+      padding: 0 16px 32px;
+      color: #111;
+      line-height: 1.45;
+    }
+    label {
+      display: block;
+      margin: 16px 0;
+    }
+    input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 6px;
+      padding: 8px;
+      font: inherit;
+    }
+    button {
+      padding: 8px 14px;
+      font: inherit;
+    }
+    p.hint {
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+  <h1>YT Condense</h1>
+  <p class="hint">These values stay in this browser. The extension sends them only to the worker address you enter, when you condense a video.</p>
+  <label>
+    Worker address
+    <input id="worker" type="url" autocomplete="off" placeholder="https://yt-condense.example.workers.dev" spellcheck="false">
+  </label>
+  <label>
+    Secret
+    <input id="secret" type="password" autocomplete="off" spellcheck="false">
+  </label>
+  <button id="save" type="button">Save</button>
+  <p id="status" class="hint"></p>
+  <script src="options.js"></script>
+</body>
+</html>

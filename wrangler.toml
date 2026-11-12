@@ -1,0 +1,11 @@
+name = "yt-condense"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+MODEL = "claude-sonnet-5-5"
+
+# Secrets, set with `wrangler secret put` before deploy:
+#   CLAUDE_API_KEY
+#   API_SECRET
+#   ELEVENLABS_API_KEY   optional; audio is returned only when this is set

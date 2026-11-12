@@ -1,0 +1,123 @@
+/* YT Condense Button */
+#yt-condense-btn {
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+#yt-condense-btn:hover {
+  opacity: 1;
+}
+
+/* Loading Spinner */
+.yt-condense-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: yt-condense-spin 0.8s linear infinite;
+}
+
+@keyframes yt-condense-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Toast Notification */
+#yt-condense-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: #1a1a1a;
+  color: white;
+  border-radius: 8px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  z-index: 99999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: yt-condense-fadein 0.3s ease;
+}
+
+#yt-condense-toast.error {
+  background: #dc2626;
+}
+
+@keyframes yt-condense-fadein {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Audio Player Overlay */
+#yt-condense-player {
+  position: fixed;
+  bottom: 100px;
+  right: 20px;
+  width: 360px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 16px;
+  z-index: 99999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  font-family: system-ui, -apple-system, sans-serif;
+  animation: yt-condense-slidein 0.3s ease;
+}
+
+@keyframes yt-condense-slidein {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.yt-condense-player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  color: white;
+  font-weight: 600;
+}
+
+.yt-condense-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.yt-condense-close:hover {
+  color: white;
+}
+
+#yt-condense-player audio {
+  width: 100%;
+  height: 40px;
+  margin-bottom: 12px;
+}
+
+.yt-condense-text {
+  color: #aaa;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  max-height: 80px;
+  overflow: hidden;
+}
+
+.yt-condense-copy {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.yt-condense-copy:hover {
+  transform: scale(1.02);
+}
