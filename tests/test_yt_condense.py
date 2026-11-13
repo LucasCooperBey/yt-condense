@@ -542,6 +542,40 @@ def test_unreadable_video_exits_3_and_names_the_reason(monkeypatch, tmp_path, ca
     assert not (tmp_path / kind).exists()
 
 
+def test_bot_check_names_the_fix_not_an_age_gate(monkeypatch, tmp_path, capsys):
+    """source: a YouTube bot check exits 3 and names --cookies-from-browser instead of calling it age gated"""
+    message = "ERROR: [youtube] abc: Sign in to confirm you\u2019re not a bot. Use --cookies-from-browser or --cookies"
+    install_sources(monkeypatch, caption_error=DownloadError(message))
+    code = yt_condense.main([VIDEO_URL, "--provider", "none", "--out", str(tmp_path / "bot")])
+    assert code == 3
+    error = capsys.readouterr().err
+    assert "not a bot" in error
+    assert "--cookies-from-browser chrome" in error
+    assert "age gated" not in error
+
+
+def test_cookies_from_browser_reaches_yt_dlp(monkeypatch):
+    """source: --cookies-from-browser is passed to yt-dlp as cookiesfrombrowser on every call"""
+    seen = []
+
+    def fake_run(options, url):
+        seen.append(dict(options))
+        raise yt_condense.VideoReadError("ERROR: stop here")
+
+    monkeypatch.setattr(yt_condense, "run_ytdlp", fake_run)
+    with pytest.raises(yt_condense.VideoReadError):
+        yt_condense.load_segments(VIDEO_URL, "en", False, "tiny", cookies_from_browser="firefox")
+    assert seen and seen[0]["cookiesfrombrowser"] == ("firefox",)
+    seen.clear()
+    with pytest.raises(yt_condense.VideoReadError):
+        yt_condense.load_segments(VIDEO_URL, "en", True, "tiny", cookies_from_browser="firefox")
+    assert seen[0]["cookiesfrombrowser"] == ("firefox",)
+    seen.clear()
+    with pytest.raises(yt_condense.VideoReadError):
+        yt_condense.load_segments(VIDEO_URL, "en", False, "tiny")
+    assert "cookiesfrombrowser" not in seen[0]
+
+
 def test_copy_sends_the_paste_text_to_the_first_clipboard_tool(monkeypatch, tmp_path):
     """source: --copy puts the paste file on the clipboard with pbcopy, clip, wl-copy, or xclip"""
     install_sources(monkeypatch, caption_vtt=SIMPLE_VTT)

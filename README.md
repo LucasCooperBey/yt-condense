@@ -1,6 +1,46 @@
-# YT-Condense
+<h1 align="center">YT-Condense</h1>
+
+<p align="center"><strong>Give it a YouTube link. Get the video back as plain spoken prose at about a fifth of the length, captions or not.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/LucasCooperBey/100-doors"><img alt="100 Doors: Door 26" src="https://img.shields.io/badge/100%20Doors-Door%2026-f94bf3"></a>
+  <a href="LICENSE"><img alt="license MIT" src="https://img.shields.io/badge/license-MIT-9aff4a"></a>
+  <img alt="python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776ab">
+  <img alt="runs with uv" src="https://img.shields.io/badge/runs%20with-uv-9aff4a">
+  <img alt="account not needed" src="https://img.shields.io/badge/account-not%20needed-9aff4a">
+  <a href="https://github.com/LucasCooperBey/yt-condense/commits/main"><img alt="last commit" src="https://img.shields.io/github/last-commit/LucasCooperBey/yt-condense?color=9aff4a&label=updated"></a>
+</p>
+
+<p align="center"><a href="#quick-start">Quick start</a> · <a href="#example">Example</a> · <a href="#no-captions">No captions</a> · <a href="#flags">Flags</a> · <a href="#limits">Limits</a> · <a href="https://github.com/LucasCooperBey/100-doors">All 100 Doors</a></p>
 
 YT-Condense turns a long YouTube video into a shorter piece of spoken prose you can read or listen to.
+
+**Who it's for:** people with a long watch-later list who would rather listen to the useful part on a walk than sit through the whole video.
+
+## Contents
+
+- [What's inside](#whats-inside)
+- [Quick start](#quick-start)
+- [Example](#example)
+- [No key](#no-key)
+- [A key or Ollama](#a-key-or-ollama)
+- [No captions](#no-captions)
+- [Flags](#flags)
+- [Bookmarklet and extension](#bookmarklet-and-extension)
+- [Limits](#limits)
+- [Part of 100 Doors](#part-of-100-doors)
+- [Credits](#credits)
+- [License](#license)
+
+## What's inside
+
+| Path | What it is |
+|---|---|
+| `yt_condense.py` | The command-line tool: captions, or local transcription when there are none, then the condense step |
+| `tests/` | pytest suite with fake yt-dlp and providers, no network |
+| `bookmarklet.js, install.html` | Optional bookmarklet that calls a Cloudflare worker you deploy |
+| `extension/` | Optional Chrome extension, same worker |
+| `src/worker.ts, wrangler.toml` | The optional worker |
 
 ## Quick start
 
@@ -83,11 +123,14 @@ The tool does not require captions. It asks yt-dlp for manual captions in `--lan
 uv run yt_condense.py URL [--from 12:30|750] [--length 20] [--lang en] [--transcribe]
                           [--whisper-model small] [--provider auto|claude|anthropic|ollama|none]
                           [--model NAME] [--out DIR] [--speak] [--copy]
+                          [--cookies-from-browser chrome|firefox|safari|edge|brave]
 ```
 
 `URL` is a watch, youtu.be, or shorts link. A `t=` in the URL sets the start when `--from` is omitted. `--from` accepts seconds (`750`), `mm:ss` (`12:30`), and `h:mm:ss` (`1:02:30`), and it wins over `t=` when both are present. Segments that start before that point are dropped.
 
 `--length` is the target size as a percent of the transcript. The default is 20. A transcript over 60,000 characters is split on segment boundaries, each part is condensed, and the parts are joined in order with a blank line. `condensed.txt` is written after each part.
+
+`--cookies-from-browser BROWSER` lets yt-dlp use the YouTube cookies of a browser you are signed in to. You need it only when YouTube answers "Sign in to confirm you are not a bot", which happens most on cloud servers and VPNs; the tool then exits 3 and says so.
 
 `--out` sets the output directory. The default is `./out/<video id>/`.
 
@@ -116,7 +159,28 @@ The bookmarklet and the extension read the transcript panel on the YouTube page.
 
 ## Limits
 
-A model can drop or bend a fact while shortening. Check the video before acting on what you heard. Transcription speed depends on the machine. The transcript is untrusted text from the video. The claude provider does not give that text tools, MCP servers, slash commands, or the files in your current folder. If a later chunk fails, `condensed.txt` keeps the finished chunks and the command exits 4.
+YouTube sometimes asks a network to prove it is not a bot. It is rare from a home connection and more common from a cloud server, where it can come and go between runs. Retry, or pass `--cookies-from-browser`. A model can drop or bend a fact while shortening. Check the video before acting on what you heard. Transcription speed depends on the machine. The transcript is untrusted text from the video. The claude provider does not give that text tools, MCP servers, slash commands, or the files in your current folder. If a later chunk fails, `condensed.txt` keeps the finished chunks and the command exits 4.
 
-Made by Lucas Cooper-Bey as Door 26 of 100 Doors, one free tool a day: https://sandiegoaistudio.com/season
-If you like seeing how other people wire tools like this together, San Diego AI Studio runs Sharathon, where builders show their own setups: https://www.skool.com/sandiegoaistudio
+## Part of 100 Doors
+
+This is the gift behind **Door 26** of [100 Doors](https://github.com/LucasCooperBey/100-doors), where I open up the things I've built with AI, one door at a time.
+
+- The door post: [X](https://x.com/i/status/2120913350549021156) · [Skool](https://www.skool.com/sandiegoaistudio/door-26-turn-a-long-video-into-a-short-listen) · [LinkedIn](https://www.linkedin.com/feed/update/urn:li:share:7526684017899970560/)
+- The door's page in the index: [gifts/DAY-026-condense-prompt.md](https://github.com/LucasCooperBey/100-doors/blob/main/gifts/DAY-026-condense-prompt.md)
+- Related door: [talk-to-slides](https://github.com/LucasCooperBey/talk-to-slides) (Door 25) gets the slides out of a recorded talk
+- The season: [sandiegoaistudio.com/season](https://sandiegoaistudio.com/season)
+
+### Come see it live
+
+If you want to see how this and the rest of the doors open up into my software factory, come to [Sharathon](https://sandiegoaistudio.com/sharathon), San Diego AI Studio's show-your-setup day. Sharathon 3 is Sunday, Nov 15 in La Mesa: [RSVP on Luma](https://luma.com/5y5ju7ud).
+
+## Credits
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) reads captions and audio
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) transcribes on your machine when a video has no captions
+- [uv](https://docs.astral.sh/uv/) installs and runs it in one step
+- Built by [Lucas Cooper-Bey](https://github.com/LucasCooperBey)
+
+## License
+
+MIT, see [LICENSE](LICENSE).

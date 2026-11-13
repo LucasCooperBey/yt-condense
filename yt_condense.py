@@ -93,7 +93,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         segments, meta = load_segments(
-            args.url, args.lang, args.transcribe, args.whisper_model
+            args.url,
+            args.lang,
+            args.transcribe,
+            args.whisper_model,
+            cookies_from_browser=args.cookies_from_browser,
         )
     except VideoReadError as exc:
         print(describe_video_error(str(exc)), file=sys.stderr)
@@ -191,6 +195,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--lang", default="en", help="Caption and transcription language (default en)")
     parser.add_argument(
+        "--cookies-from-browser",
+        metavar="BROWSER",
+        default=None,
+        help="Let yt-dlp read YouTube cookies from this browser (chrome, firefox, safari, edge, brave) "
+        "when YouTube asks to sign in",
+    )
+    parser.add_argument(
         "--transcribe",
         action="store_true",
         help="Download the audio and transcribe it even when captions exist",
@@ -285,17 +296,27 @@ def parse_start(value: str) -> float:
 
 
 def load_segments(
-    url: str, lang: str, transcribe: bool, whisper_model: str
+    url: str,
+    lang: str,
+    transcribe: bool,
+    whisper_model: str,
+    *,
+    cookies_from_browser: str | None = None,
 ) -> tuple[list[tuple[float, str]], dict[str, str]]:
+    def with_cookies(options: dict) -> dict:
+        if cookies_from_browser:
+            options["cookiesfrombrowser"] = (cookies_from_browser,)
+        return options
+
     with tempfile.TemporaryDirectory(prefix="yt-condense-") as tmp:
         directory = Path(tmp)
         if not transcribe:
-            info = run_ytdlp(caption_options(directory, lang), url)
+            info = run_ytdlp(with_cookies(caption_options(directory, lang)), url)
             caption_text = read_captions(info, directory)
             segments = parse_vtt(caption_text) if caption_text else []
             if segments:
                 return segments, meta_from(info, url)
-        info = run_ytdlp(audio_options(directory), url)
+        info = run_ytdlp(with_cookies(audio_options(directory)), url)
         audio_path = find_audio(info, directory)
         if audio_path is None:
             raise VideoReadError("yt-dlp did not save an audio file")
@@ -835,6 +856,13 @@ def provider_failure(exc: ProviderError, transcript_path: Path, paste_path: Path
 
 def describe_video_error(message: str) -> str:
     text = message.lower()
+    if "not a bot" in text:
+        return (
+            "The video could not be read (YouTube asked to confirm you are not a bot). "
+            "This happens most on cloud servers and VPNs. Run it from your own connection, "
+            "or add --cookies-from-browser chrome (or firefox, safari, edge, brave) so yt-dlp "
+            f"uses your signed-in browser. yt-dlp reported: {message}"
+        )
     if "private" in text:
         kind = "private"
     elif "age" in text or "sign in to confirm" in text:
